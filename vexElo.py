@@ -52,5 +52,6 @@ def elo_rankings_from_file():
 
 
 
+
 if __name__ == '__main__':
     elo_rankings_from_file()
