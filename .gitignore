@@ -4,6 +4,9 @@
 #venv
 venv/
 
+#csv files
+*.csv
+
 # User-specific stuff
 .idea/**/workspace.xml
 .idea/**/tasks.xml
