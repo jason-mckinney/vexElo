@@ -175,11 +175,11 @@ def elo_rankings_from_file(name='elo.csv'):
 
     team_row = {
         'team': ['0000'],
-        'elo': [1600.0],
-        'played': [9999],
-        'won': [9999],
+        'elo': [1200.0],
+        'played': [1],
+        'won': [1],
         'provisional': [False],
-        'provision': [800.0]
+        'provision': [1000.0]
     }
 
     team_db = pd.DataFrame(data=team_row).to_numpy()
@@ -211,5 +211,5 @@ def elo_rankings_from_file(name='elo.csv'):
 
 
 if __name__ == '__main__':
-    get_all_matches()
-    elo_rankings_from_file()
+    get_all_matches('In The Zone')
+    #elo_rankings_from_file('elo2018.csv')
