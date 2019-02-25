@@ -2,6 +2,7 @@ import requests
 import pandas as pd
 from pathlib import Path
 import numpy as np
+import time
 
 kfactor = 64
 nToEstablish = 8
@@ -147,15 +148,6 @@ def elo_rankings_from_file():
         elo_db[r1_index, 2] += 1
         elo_db[r2_index, 2] += 1
 
-        if blue1[0] == '6293F':
-            a = 3
-        if blue2[0] == '6293F':
-            a = 4
-        if red1[0] == '6293F':
-            a = 5
-        if red2[0] == '6293F':
-            a = 6
-
         if elo_db[b1_index, 4]:
             elo_db[b1_index, 1] = max(100.0, elo_db[b1_index, 5] / elo_db[b1_index, 2])
 
@@ -183,7 +175,7 @@ def elo_rankings_from_file():
         return elo_db
 
     team_row = {
-        'team': ['44'],
+        'team': ['0000'],
         'elo': [800.0],
         'played': [9999],
         'won': [9999],
@@ -207,11 +199,18 @@ def elo_rankings_from_file():
     for row in matches.values:
         team_db = award_match(row, team_db)
 
-    pd.DataFrame(
+    dataframe = pd.DataFrame(
         team_db,
         columns=['team', 'elo', 'played', 'won', 'provisional', 'provision']
-    ).set_index('team').to_csv(Path('.') / 'elo.csv')
+    ).set_index('team').drop('0000')
+
+    dataframe.sort_values(by=['elo'], ascending=False, inplace=True)
+    dataframe.reset_index(inplace=True)
+    dataframe.index = range(1, len(dataframe) + 1)
+    dataframe.index.names = ['rank']
+    dataframe.to_csv(Path('.') / 'elo.csv')
 
 
 if __name__ == '__main__':
+    get_all_matches('In The Zone')
     elo_rankings_from_file()
