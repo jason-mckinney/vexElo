@@ -2,10 +2,9 @@ import requests
 import pandas as pd
 from pathlib import Path
 import numpy as np
-import time
 
-kfactor = 64
-nToEstablish = 8
+k_factor = 64
+nToEstablish = 16
 
 
 def get_all_matches(season='current'):
@@ -38,7 +37,7 @@ def get_all_matches(season='current'):
     dataframe.to_csv(Path('.') / 'matches.csv')
 
 
-def elo_rankings_from_file():
+def elo_rankings_from_file(name='elo.csv'):
     def add_team(teams, team):
         return np.insert(teams, 0, [team, teams[teams[:, 4] == False][:, 1].mean(), 0, 0, True, 0.0], axis=0)
 
@@ -88,8 +87,8 @@ def elo_rankings_from_file():
 
         actual_red = 1.0 - actual_blue
 
-        delta_blue = kfactor * (actual_blue - expected_blue)
-        delta_red = kfactor * (actual_red - expected_red)
+        delta_blue = k_factor * (actual_blue - expected_blue)
+        delta_red = k_factor * (actual_red - expected_red)
         blue1_contrib = blue_r1 / (blue_rating * 2)
         blue2_contrib = 1.0 - blue1_contrib
         red1_contrib = red_r1 / (red_rating * 2)
@@ -176,7 +175,7 @@ def elo_rankings_from_file():
 
     team_row = {
         'team': ['0000'],
-        'elo': [800.0],
+        'elo': [1600.0],
         'played': [9999],
         'won': [9999],
         'provisional': [False],
@@ -199,18 +198,18 @@ def elo_rankings_from_file():
     for row in matches.values:
         team_db = award_match(row, team_db)
 
-    dataframe = pd.DataFrame(
+    data_frame = pd.DataFrame(
         team_db,
         columns=['team', 'elo', 'played', 'won', 'provisional', 'provision']
     ).set_index('team').drop('0000')
 
-    dataframe.sort_values(by=['elo'], ascending=False, inplace=True)
-    dataframe.reset_index(inplace=True)
-    dataframe.index = range(1, len(dataframe) + 1)
-    dataframe.index.names = ['rank']
-    dataframe.to_csv(Path('.') / 'elo.csv')
+    data_frame.sort_values(by=['elo'], ascending=False, inplace=True)
+    data_frame.reset_index(inplace=True)
+    data_frame.index = range(1, len(data_frame) + 1)
+    data_frame.index.names = ['rank']
+    data_frame.to_csv(Path('.') / name)
 
 
 if __name__ == '__main__':
-    get_all_matches('In The Zone')
+    get_all_matches()
     elo_rankings_from_file()
