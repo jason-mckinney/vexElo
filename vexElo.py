@@ -1,11 +1,13 @@
 import requests
 import pandas as pd
 from pathlib import Path
+import numpy as np
 
 kfactor = 64
-nToEstablish = 16
+nToEstablish = 8
 
-def get_all_matches(season = 'current'):
+
+def get_all_matches(season='current'):
     matches_total = requests.get(
         'https://api.vexdb.io/v1/get_matches',
         params={'nodata': 'true', 'season': season}
@@ -36,148 +38,162 @@ def get_all_matches(season = 'current'):
 
 
 def elo_rankings_from_file():
-    def add_team(df, team):
-        return df.append(pd.DataFrame(
-            data={
-                'team': [team],
-                'elo': [df.loc[df['provisional']]['elo'].mean()],
-                'played': [0],
-                'won': [0],
-                'provisional': [True],
-                'provision': [0.0]
-            }
-        ).set_index('team', inplace=False))
+    def add_team(teams, team):
+        return np.insert(teams, 0, [team, teams[teams[:, 4] == False][:, 1].mean(), 0, 0, True, 0.0], axis=0)
 
-    def award_match(match, eloDB):
-        if match[1].blue1 not in eloDB.index:
-            eloDB = add_team(eloDB, match[1].blue1)
-        if match[1].blue2 not in eloDB.index:
-            eloDB = add_team(eloDB, match[1].blue2)
-        if match[1].red1 not in eloDB.index:
-            eloDB = add_team(eloDB, match[1].red1)
-        if match[1].red2 not in eloDB.index:
-            eloDB = add_team(eloDB, match[1].red2)
+    def award_match(match, elo_db):
+        # 0,     1,     2,         3,    4,    5
+        # blue1, blue2, bluescore, red1, red2, redscore
 
-        blue1 = eloDB.loc[match[1].blue1]
-        blue2 = eloDB.loc[match[1].blue2]
-        red1 = eloDB.loc[match[1].red1]
-        red2 = eloDB.loc[match[1].red2]
+        if match[0] not in elo_db[:, 0]:
+            elo_db = add_team(elo_db, match[0])
+        if match[1] not in elo_db[:, 0]:
+            elo_db = add_team(elo_db, match[1])
+        if match[3] not in elo_db[:, 0]:
+            elo_db = add_team(elo_db, match[3])
+        if match[4] not in elo_db[:, 0]:
+            elo_db = add_team(elo_db, match[4])
 
-        blueR1 = blue1['elo']
-        blueR2 = blue2['elo']
-        redR1 = red1['elo']
-        redR2 = red2['elo']
+        b1_index = np.where(elo_db[:, 0] == match[0])[0][0]
+        b2_index = np.where(elo_db[:, 0] == match[1])[0][0]
+        r1_index = np.where(elo_db[:, 0] == match[3])[0][0]
+        r2_index = np.where(elo_db[:, 0] == match[4])[0][0]
 
-        blueRating = (blueR1 + blueR2)/2.0
-        redRating = (redR1 + redR2)/2.0
-        expectedBlue = 1.0/(1.0 + pow(10.0, ((redRating - blueRating) / 400.0)))
-        expectedRed = 1.0 - expectedBlue
-        actualBlue = 0.0
+        blue1 = elo_db[b1_index]
+        blue2 = elo_db[b2_index]
+        red1 = elo_db[r1_index]
+        red2 = elo_db[r2_index]
 
-        if match[1].bluescore > match[1].redscore:
-            actualBlue = 1.0
-            eloDB.at[blue1.name, 'won'] += 1
-            eloDB.at[blue2.name, 'won'] += 1
-        elif match[1].bluescore < match[1].redscore:
-            actualBlue = 0.0
-            eloDB.at[red1.name, 'won'] += 1
-            eloDB.at[red2.name, 'won'] += 1
+        blue_r1 = blue1[1]
+        blue_r2 = blue2[1]
+        red_r1 = red1[1]
+        red_r2 = red2[1]
+
+        blue_rating = (blue_r1 + blue_r2) / 2.0
+        red_rating = (red_r1 + red_r2) / 2.0
+        expected_blue = 1.0 / (1.0 + pow(10.0, ((red_rating - blue_rating) / 400.0)))
+        expected_red = 1.0 - expected_blue
+
+        if match[2] > match[5]:
+            actual_blue = 1.0
+            elo_db[b1_index, 3] += 1
+            elo_db[b2_index, 3] += 1
+        elif match[2] < match[5]:
+            actual_blue = 0.0
+            elo_db[r1_index, 3] += 1
+            elo_db[r2_index, 3] += 1
         else:
-            actualBlue = 0.5
+            actual_blue = 0.5
 
-        actualRed = 1.0 - actualBlue
+        actual_red = 1.0 - actual_blue
 
-        deltaBlue = kfactor * (actualBlue - expectedBlue)
-        deltaRed = kfactor * (actualRed - expectedRed)
-        blue1Contrib = blueR1 / blueRating
-        blue2Contrib = 1.0 - blue1Contrib
-        red1Contrib = redR1 / redRating
-        red2Contrib = 1.0 - red1Contrib
+        delta_blue = kfactor * (actual_blue - expected_blue)
+        delta_red = kfactor * (actual_red - expected_red)
+        blue1_contrib = blue_r1 / (blue_rating * 2)
+        blue2_contrib = 1.0 - blue1_contrib
+        red1_contrib = red_r1 / (red_rating * 2)
+        red2_contrib = 1.0 - red1_contrib
 
-        if blue1.provisional:
+        if blue1[4]:
             modifier = 0
 
-            if actualBlue is 1.0:
-                modifier = 400 - int(red1.provisional) * 100 - int(red2.provisional) * 100
-            elif actualBlue is 0:
-                modifier = -400 + int(red1.provisional) * 100 + int(red2.privisional) * 100
+            if actual_blue == 1.0:
+                modifier = 400 - int(red1[4]) * 100 - int(red2[4]) * 100
+            elif actual_blue == 0.0:
+                modifier = -400 + int(red1[4]) * 100 + int(red2[4]) * 100
 
-            eloDB.at[blue1.name, 'provision'] += redRating + modifier
+            elo_db[b1_index, 5] += red_rating + modifier
         else:
-            eloDB.at[blue1.name, 'elo'] = max(blue1['elo'] + kfactor * deltaBlue * blue1Contrib, 100)
+            elo_db[b1_index, 1] = max(100.0, blue1[1] + delta_blue * blue1_contrib)
 
-        if blue2.provisional:
+        if blue2[4]:
             modifier = 0
 
-            if actualBlue is 1.0:
-                modifier = 400 - int(red1.provisional) * 100 - int(red2.provisional) * 100
-            elif actualBlue is 0:
-                modifier = -400 + int(red1.provisional) * 100 + int(red2.privisional) * 100
+            if actual_blue == 1.0:
+                modifier = 400 - int(red1[4]) * 100 - int(red2[4]) * 100
+            elif actual_blue == 0.0:
+                modifier = -400 + int(red1[4]) * 100 + int(red2[4]) * 100
 
-            eloDB.at[blue2.name, 'provision'] += redRating + modifier
+            elo_db[b2_index, 5] += red_rating + modifier
         else:
-            eloDB.at[blue2.name, 'elo'] = max(blue2['elo'] + kfactor * deltaBlue * blue2Contrib, 100)
+            elo_db[b2_index, 1] = max(100.0, blue2[1] + delta_blue * blue2_contrib)
 
-        if red1.provisional:
+        if red1[4]:
             modifier = 0
 
-            if actualRed is 1.0:
-                modifier = 400 - int(blue1.provisional) * 100 - int(blue2.provisional) * 100
-            elif actualRed is 0:
-                modifier = -400 + int(blue1.provisional) * 100 + int(blue2.privisional) * 100
+            if actual_red == 1.0:
+                modifier = 400 - int(blue1[4]) * 100 - int(blue2[4]) * 100
+            elif actual_red == 0.0:
+                modifier = -400 + int(blue2[4]) * 100 + int(blue2[4]) * 100
 
-            eloDB.at[red1.name, 'provision'] += blueRating + modifier
+            elo_db[r1_index, 5] += blue_rating + modifier
         else:
-            eloDB.at[red1.name, 'elo'] = max(red1['elo'] + kfactor * deltaRed * red1Contrib, 100)
+            elo_db[r1_index, 1] = max(100.0, red1[1] + delta_red * red1_contrib)
 
-        if red2.provisional:
+        if red2[4]:
             modifier = 0
 
-            if actualRed is 1.0:
-                modifier = 400 - int(blue1.provisional) * 100 - int(blue2.provisional) * 100
-            elif actualRed is 0:
-                modifier = -400 + int(blue1.provisional) * 100 + int(blue2.privisional) * 100
+            if actual_red == 1.0:
+                modifier = 400 - int(blue1[4]) * 100 - int(blue2[4]) * 100
+            elif actual_red == 0.0:
+                modifier = -400 + int(blue2[4]) * 100 + int(blue2[4]) * 100
 
-            eloDB.at[red2.name, 'provision'] += blueRating + modifier
+            elo_db[r2_index, 5] += blue_rating + modifier
         else:
-            eloDB.at[red2.name, 'elo'] = max(red2['elo'] + kfactor * deltaRed * red2Contrib, 100)
+            elo_db[r2_index, 1] = max(100.0, red2[1] + delta_red * red2_contrib)
 
-        eloDB.at[blue1.name, 'played'] += 1
-        eloDB.at[blue2.name, 'played'] += 1
-        eloDB.at[red1.name, 'played'] += 1
-        eloDB.at[red2.name, 'played'] += 1
+        elo_db[b1_index, 2] += 1
+        elo_db[b2_index, 2] += 1
+        elo_db[r1_index, 2] += 1
+        elo_db[r2_index, 2] += 1
 
-        if eloDB.loc[blue1.name, 'provisional'] and eloDB.loc[blue1.name, 'played'] >= nToEstablish:
-            eloDB.at[blue1.name, 'provisional'] = False
-            eloDB.at[blue1.name, 'elo'] = eloDB.loc[blue1.name, 'provision'] / eloDB.loc[blue1.name, 'played']
+        if blue1[0] == '6293F':
+            a = 3
+        if blue2[0] == '6293F':
+            a = 4
+        if red1[0] == '6293F':
+            a = 5
+        if red2[0] == '6293F':
+            a = 6
 
-        if eloDB.loc[blue2.name, 'provisional'] and eloDB.loc[blue2.name, 'played'] >= nToEstablish:
-            eloDB.at[blue2.name, 'provisional'] = False
-            eloDB.at[blue2.name, 'elo'] = eloDB.loc[blue2.name, 'provision'] / eloDB.loc[blue2.name, 'played']
+        if elo_db[b1_index, 4]:
+            elo_db[b1_index, 1] = max(100.0, elo_db[b1_index, 5] / elo_db[b1_index, 2])
 
-        if eloDB.loc[red1.name, 'provisional'] and eloDB.loc[red1.name, 'played'] >= nToEstablish:
-            eloDB.at[red1.name, 'provisional'] = False
-            eloDB.at[red1.name, 'elo'] = eloDB.loc[red1.name, 'provision'] / eloDB.loc[red1.name, 'played']
+            if elo_db[b1_index, 2] >= nToEstablish:
+                elo_db[b1_index, 4] = False
 
-        if eloDB.loc[red2.name, 'provisional'] and eloDB.loc[red2.name, 'played'] >= nToEstablish:
-            eloDB.at[red2.name, 'provisional'] = False
-            eloDB.at[red2.name, 'elo'] = eloDB.loc[red2.name, 'provision'] / eloDB.loc[red2.name, 'played']
+        if elo_db[b2_index, 4]:
+            elo_db[b2_index, 1] = max(100.0, elo_db[b2_index, 5] / elo_db[b2_index, 2])
 
-        return eloDB
+            if elo_db[b2_index, 2] >= nToEstablish:
+                elo_db[b2_index, 4] = False
 
+        if elo_db[r1_index, 4]:
+            elo_db[r1_index, 1] = max(100.0, elo_db[r1_index, 5] / elo_db[r1_index, 2])
 
-    teamRow = {
-        'team': [44],
+            if elo_db[r1_index, 2] >= nToEstablish:
+                elo_db[r1_index, 4] = False
+
+        if elo_db[r2_index, 4]:
+            elo_db[r2_index, 1] = max(100.0, elo_db[r2_index, 5] / elo_db[r2_index, 2])
+
+            if elo_db[r2_index, 2] >= nToEstablish:
+                elo_db[r2_index, 4] = False
+
+        return elo_db
+
+    team_row = {
+        'team': ['44'],
         'elo': [800.0],
         'played': [9999],
         'won': [9999],
-        'provisional': [True],
+        'provisional': [False],
         'provision': [800.0]
     }
 
-    teamDB = pd.DataFrame(data=teamRow).set_index('team', inplace=False)
+    team_db = pd.DataFrame(data=team_row).to_numpy()
 
-    matches = pd.read_csv(Path('.') / 'matches.csv').sort_index(ascending = False).filter(
+    matches = pd.read_csv(Path('.') / 'matches.csv').sort_index(ascending=False).filter(
         items=[
             'blue1',
             'blue2',
@@ -188,12 +204,14 @@ def elo_rankings_from_file():
         ]
     )
 
-    for row in matches.iterrows():
-        teamDB = award_match(row, teamDB)
-    print(teamDB)
-    teamDB.to_csv(Path('.') / 'elo.csv')
+    for row in matches.values:
+        team_db = award_match(row, team_db)
+
+    pd.DataFrame(
+        team_db,
+        columns=['team', 'elo', 'played', 'won', 'provisional', 'provision']
+    ).set_index('team').to_csv(Path('.') / 'elo.csv')
 
 
 if __name__ == '__main__':
-    get_all_matches()
     elo_rankings_from_file()
