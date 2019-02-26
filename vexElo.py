@@ -31,9 +31,35 @@ def get_all_matches(season='current'):
             }
         ).json()
         matches.extend(res['result'])
-    dataframe = pd.DataFrame(matches)
-    dataframe = dataframe[dataframe.blue2 != '']
-    dataframe = dataframe[dataframe.scored == 1]
+    raw_dataframe = pd.DataFrame(matches)
+    raw_dataframe = raw_dataframe[raw_dataframe.blue2 != '']
+    raw_dataframe = raw_dataframe[raw_dataframe.scored == 1]
+
+    skus = raw_dataframe['sku'].drop_duplicates()[::-1]
+    dataframe = pd.DataFrame(columns=[
+            'blue1',
+            'blue2',
+            'blue3',
+            'bluescore',
+            'bluesit',
+            'division',
+            'field',
+            'instance',
+            'matchnum',
+            'red1',
+            'red2',
+            'red3',
+            'redscore',
+            'redsit',
+            'round',
+            'scheduled',
+            'scored',
+            'sku'
+    ])
+
+    for sku in skus.values:
+        dataframe = dataframe.append(raw_dataframe[raw_dataframe['sku'] == sku])
+
     dataframe.to_csv(Path('.') / 'matches.csv')
 
 
@@ -175,23 +201,23 @@ def elo_rankings_from_file(name='elo.csv'):
 
     team_row = {
         'team': ['0000'],
-        'elo': [1200.0],
+        'elo': [800.0],
         'played': [1],
         'won': [1],
         'provisional': [False],
-        'provision': [1000.0]
+        'provision': [800.0]
     }
 
     team_db = pd.DataFrame(data=team_row).to_numpy()
 
-    matches = pd.read_csv(Path('.') / 'matches.csv').sort_index(ascending=False).filter(
+    matches = pd.read_csv(Path('.') / 'matches.csv').filter(
         items=[
             'blue1',
             'blue2',
             'bluescore',
             'red1',
             'red2',
-            'redscore',
+            'redscore'
         ]
     )
 
@@ -211,5 +237,19 @@ def elo_rankings_from_file(name='elo.csv'):
 
 
 if __name__ == '__main__':
+    get_all_matches()
+    elo_rankings_from_file('elo2019 (Turning Point).csv')
+    get_all_matches('Sack Attack')
+    elo_rankings_from_file('elo2013 (Sack Attack).csv')
+    get_all_matches('Gateway')
+    elo_rankings_from_file('elo2012 (Gateway).csv')
+    get_all_matches('Toss Up')
+    elo_rankings_from_file('elo2014 (Toss Up).csv')
+    get_all_matches('Skyrise')
+    elo_rankings_from_file('elo2015 (Skyrise).csv')
+    get_all_matches('Nothing But Net')
+    elo_rankings_from_file('elo2016 (Nothing But Net).csv')
+    get_all_matches('Starstruck')
+    elo_rankings_from_file('elo2017 (Starstruck).csv')
     get_all_matches('In The Zone')
-    #elo_rankings_from_file('elo2018.csv')
+    elo_rankings_from_file('elo2018 (In The Zone).csv')
