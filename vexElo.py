@@ -209,6 +209,12 @@ def elo_rankings_from_file(name='elo.csv'):
     }
 
     team_db = pd.DataFrame(data=team_row).to_numpy()
+    team_db[0, 0] = '0000'
+    team_db[0, 1] = 800.0
+    team_db[0, 2] = 1
+    team_db[0, 3] = 1
+    team_db[0, 4] = False
+    team_db[0, 5] = 800.0
 
     matches = pd.read_csv(Path('.') / 'matches.csv').filter(
         items=[
