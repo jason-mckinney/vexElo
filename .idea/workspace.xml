@@ -15,8 +15,11 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/vexElo.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="596">
-              <caret line="245" column="20" selection-start-line="245" selection-start-column="20" selection-end-line="245" selection-end-column="20" />
+            <state relative-caret-position="393">
+              <caret line="292" column="48" lean-forward="true" selection-start-line="292" selection-start-column="48" selection-end-line="292" selection-end-column="48" />
+              <folding>
+                <element signature="e#0#15#0" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
@@ -34,9 +37,20 @@
   <component name="FindInProjectRecents">
     <findStrings>
       <find>set_index</find>
+      <find>ranks.loc[match[4],</find>
+      <find>'won'</find>
+      <find>red1[</find>
     </findStrings>
+    <replaceStrings>
+      <replace>blue1[</replace>
+      <replace>red2[</replace>
+      <replace>3</replace>
+      <replace>ranks[blue2,</replace>
+      <replace>ranks[red1,</replace>
+    </replaceStrings>
   </component>
   <component name="Git.Settings">
+    <option name="ROOT_SYNC" value="DONT_SYNC" />
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="IdeDocumentHistory">
@@ -48,10 +62,11 @@
       </list>
     </option>
   </component>
-  <component name="ProjectFrameBounds" extendedState="6">
-    <option name="y" value="23" />
-    <option name="width" value="1680" />
-    <option name="height" value="1027" />
+  <component name="ProjectFrameBounds">
+    <option name="x" value="-7" />
+    <option name="y" value="40" />
+    <option name="width" value="2104" />
+    <option name="height" value="1407" />
   </component>
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectView">
@@ -64,8 +79,8 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
-    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
+    <property name="last_opened_file_path" value="E:/Program Files/Git/bin/git.exe" />
+    <property name="settings.editor.selected.configurable" value="vcs.Git" />
   </component>
   <component name="RunDashboard">
     <option name="ruleStates">
@@ -116,16 +131,16 @@
     <servers />
   </component>
   <component name="ToolWindowManager">
-    <frame x="-7" y="40" width="2507" height="1407" extended-state="0" />
+    <frame x="-7" y="40" width="2104" height="1407" extended-state="0" />
     <editor active="true" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.1672742" />
+      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.27637947" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" />
-      <window_info anchor="bottom" id="Run" order="2" weight="0.32834226" />
-      <window_info active="true" anchor="bottom" id="Debug" order="3" visible="true" weight="0.4010989" />
+      <window_info anchor="bottom" id="Run" order="2" weight="0.33045527" />
+      <window_info active="true" anchor="bottom" id="Debug" order="3" visible="true" weight="0.40031397" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
       <window_info anchor="bottom" id="TODO" order="6" />
@@ -140,13 +155,6 @@
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/vexElo.py</url>
-          <line>218</line>
-          <option name="timeStamp" value="6" />
-        </line-breakpoint>
-      </breakpoints>
       <default-breakpoints>
         <breakpoint type="python-exception">
           <properties notifyOnTerminate="true" exception="BaseException">
@@ -158,6 +166,47 @@
   </component>
   <component name="debuggerHistoryManager">
     <expressions id="evaluateCodeFragment">
+      <expression>
+        <expression-string>pd.DataFrame(
+        np_rankings,
+        columns=['team', 'rank', 'elo', 'played', 'won', 'provisional', 'provision', 'region', 'country', 'grade']
+    ).set_index('team').drop('0000').reset_index().set_index('rank')</expression-string>
+        <language-id>Python</language-id>
+        <evaluation-mode>CODE_FRAGMENT</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>pd.DataFrame(
+        np_rankings,
+        columns=['team', 'rank', 'elo', 'played', 'won', 'provisional', 'provision', 'region', 'country', 'grade']
+    ).set_index('team').drop('0000')</expression-string>
+        <language-id>Python</language-id>
+        <evaluation-mode>CODE_FRAGMENT</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>pd.DataFrame(
+        np_rankings,
+        columns=['team', 'rank', 'elo', 'played', 'won', 'provisional', 'provision', 'region', 'country', 'grade']
+    ).set_index('team').drop('0000').set_index('rank')</expression-string>
+        <language-id>Python</language-id>
+        <evaluation-mode>CODE_FRAGMENT</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>pd.DataFrame(
+        data={
+            'team': ['0000'],
+            'elo': [800.0],
+            'played': [1],
+            'won': [1],
+            'provisional': [False],
+            'provision': [800.0],
+            'region': '',
+            'country': '',
+            'grade': ''
+        }
+    ).set_index('team')</expression-string>
+        <language-id>Python</language-id>
+        <evaluation-mode>CODE_FRAGMENT</evaluation-mode>
+      </expression>
       <expression>
         <expression-string>requests.get(
         'https://api.vexdb.io/v1/get_matches',
@@ -198,82 +247,50 @@
         <language-id>Python</language-id>
         <evaluation-mode>CODE_FRAGMENT</evaluation-mode>
       </expression>
-      <expression>
-        <expression-string>requests.get(
-        'https://api.vexdb.io/v1/get_teams',
-        params={'nodata': 'true', 'program': 'VRC', 'season': 'skyrise'}
-    ).json()</expression-string>
-        <language-id>Python</language-id>
-        <evaluation-mode>CODE_FRAGMENT</evaluation-mode>
-      </expression>
-      <expression>
-        <expression-string>requests.get(
-        'https://api.vexdb.io/v1/get_teams',
-        params={'nodata': 'true', 'program': 'VRC', 'season': 'Skyrise'}
-    ).json()</expression-string>
-        <language-id>Python</language-id>
-        <evaluation-mode>CODE_FRAGMENT</evaluation-mode>
-      </expression>
-      <expression>
-        <expression-string>matches_total = requests.get(
-        'https://api.vexdb.io/v1/get_teams',
-        params={'nodata': 'true', 'program': 'VRC', 'season': 'Skyrise'}
-    ).json()</expression-string>
-        <language-id>Python</language-id>
-        <evaluation-mode>CODE_FRAGMENT</evaluation-mode>
-      </expression>
-      <expression>
-        <expression-string>requests.get(
-        'https://api.vexdb.io/v1/get_teams',
-        params={'nodata': 'true', 'program': 'VRC', 'season': 'Current'}
-    ).json()</expression-string>
-        <language-id>Python</language-id>
-        <evaluation-mode>CODE_FRAGMENT</evaluation-mode>
-      </expression>
     </expressions>
     <expressions id="evaluateExpression">
       <expression>
-        <expression-string>dataframe.append(raw_dataframe[raw_dataframe['sku'] == sku])</expression-string>
+        <expression-string>ranks[:, 0]</expression-string>
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
       <expression>
-        <expression-string>raw_dataframe[raw_dataframe['sku'] == sku]</expression-string>
+        <expression-string>np.where(ranks[:, 0] == match[0])</expression-string>
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
       <expression>
-        <expression-string>elo_db[b2_index, 2]</expression-string>
+        <expression-string>rankings</expression-string>
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
       <expression>
-        <expression-string>elo_db[b1_index, 2]</expression-string>
+        <expression-string>np.insert(the_list, 0, [team, 0, mean_elo, 0, 0, True, 0.0, region, country, grade], axis=0)</expression-string>
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
       <expression>
-        <expression-string>elo_db[b2_index, 5]</expression-string>
+        <expression-string>the_list[the_list[:, 4] == False][:, 1].mean()</expression-string>
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
       <expression>
-        <expression-string>elo_db[b2_index, 1]</expression-string>
+        <expression-string>ranks</expression-string>
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
       <expression>
-        <expression-string>elo_db[r2_index, 1]</expression-string>
+        <expression-string>ranks.loc[match[0], 'elo':'provision'] = blue1[1], blue1[2], blue1[3], blue1[4], blue1[5]</expression-string>
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
       <expression>
-        <expression-string>elo_db[b1_index, 5]</expression-string>
+        <expression-string>ranks.loc[match[0], :]</expression-string>
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
       <expression>
-        <expression-string>elo_db[b1_index, 1]</expression-string>
+        <expression-string>ranks.loc[match[0], 1:5]</expression-string>
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
@@ -303,10 +320,27 @@
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/venv/lib/python3.6/site-packages/numpy/lib/function_base.py" />
+    <entry file="file://$PROJECT_DIR$/venv/Lib/site-packages/pandas/core/frame.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="246">
+          <caret line="3603" selection-start-line="3603" selection-end-line="3603" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/venv/Lib/site-packages/pandas/core/internals/blocks.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="238">
+          <caret line="342" selection-start-line="342" selection-end-line="342" />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/vexElo.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="596">
-          <caret line="245" column="20" selection-start-line="245" selection-start-column="20" selection-end-line="245" selection-end-column="20" />
+        <state relative-caret-position="393">
+          <caret line="292" column="48" lean-forward="true" selection-start-line="292" selection-start-column="48" selection-end-line="292" selection-end-column="48" />
+          <folding>
+            <element signature="e#0#15#0" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>

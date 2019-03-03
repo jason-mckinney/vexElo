@@ -2,9 +2,41 @@ import requests
 import pandas as pd
 from pathlib import Path
 import numpy as np
+import time
 
 k_factor = 64
 nToEstablish = 16
+pd.options.mode.chained_assignment = None
+
+def get_all_teams():
+    teams_total = requests.get(
+        'https://api.vexdb.io/v1/get_teams',
+        params={
+            'nodata': 'true',
+            'program': 'VRC'
+        }
+    ).json()['size']
+
+    res = requests.get(
+        'https://api.vexdb.io/v1/get_teams',
+        params={
+          'program': 'VRC'
+        }
+    ).json()
+
+    teams = res['result']
+
+    while len(teams) < teams_total:
+        res = requests.get(
+            'https://api.vexdb.io/v1/get_teams',
+            params={
+                'program': 'VRC',
+                'limit_start': len(teams)
+            }
+        ).json()
+        teams.extend(res['result'])
+
+    return pd.DataFrame(teams).set_index('number')
 
 
 def get_all_matches(season='current'):
@@ -60,40 +92,47 @@ def get_all_matches(season='current'):
     for sku in skus.values:
         dataframe = dataframe.append(raw_dataframe[raw_dataframe['sku'] == sku])
 
-    dataframe.to_csv(Path('.') / 'matches.csv')
+    return dataframe
 
 
-def elo_rankings_from_file(name='elo.csv'):
-    def add_team(teams, team):
-        return np.insert(teams, 0, [team, teams[teams[:, 4] == False][:, 1].mean(), 0, 0, True, 0.0], axis=0)
+def elo_rankings_from_matches(team_list, matches, rankings=None):
+    def add_team(the_list, team):
+        try:
+            team_from_list = team_list.loc[team]
+            country = team_from_list[1]
+            region = team_from_list[6]
+            grade = team_from_list[2]
+        except KeyError:
+            region = ''
+            grade = ''
+            country = ''
 
-    def award_match(match, elo_db):
+        mean_elo = the_list[the_list[:, 5] == False][:, 2].mean()
+        return np.insert(the_list, 0, [team, 0, mean_elo, 0, 0, True, 0.0, region, country, grade], axis=0)
+
+
+    def award_match(match, ranks):
         # 0,     1,     2,         3,    4,    5
         # blue1, blue2, bluescore, red1, red2, redscore
 
-        if match[0] not in elo_db[:, 0]:
-            elo_db = add_team(elo_db, match[0])
-        if match[1] not in elo_db[:, 0]:
-            elo_db = add_team(elo_db, match[1])
-        if match[3] not in elo_db[:, 0]:
-            elo_db = add_team(elo_db, match[3])
-        if match[4] not in elo_db[:, 0]:
-            elo_db = add_team(elo_db, match[4])
+        if match[0] not in ranks[:, 0]:
+            ranks = add_team(ranks, match[0])
+        if match[1] not in ranks[:, 0]:
+            ranks = add_team(ranks, match[1])
+        if match[3] not in ranks[:, 0]:
+            ranks = add_team(ranks, match[3])
+        if match[4] not in ranks[:, 0]:
+            ranks = add_team(ranks, match[4])
 
-        b1_index = np.where(elo_db[:, 0] == match[0])[0][0]
-        b2_index = np.where(elo_db[:, 0] == match[1])[0][0]
-        r1_index = np.where(elo_db[:, 0] == match[3])[0][0]
-        r2_index = np.where(elo_db[:, 0] == match[4])[0][0]
+        blue1 = np.where(ranks[:, 0] == match[0])[0][0]
+        blue2 = np.where(ranks[:, 0] == match[1])[0][0]
+        red1 = np.where(ranks[:, 0] == match[3])[0][0]
+        red2 = np.where(ranks[:, 0] == match[4])[0][0]
 
-        blue1 = elo_db[b1_index]
-        blue2 = elo_db[b2_index]
-        red1 = elo_db[r1_index]
-        red2 = elo_db[r2_index]
-
-        blue_r1 = blue1[1]
-        blue_r2 = blue2[1]
-        red_r1 = red1[1]
-        red_r2 = red2[1]
+        blue_r1 = ranks[blue1, 2]
+        blue_r2 = ranks[blue2, 2]
+        red_r1 = ranks[red1, 2]
+        red_r2 = ranks[red2, 2]
 
         blue_rating = (blue_r1 + blue_r2) / 2.0
         red_rating = (red_r1 + red_r2) / 2.0
@@ -102,12 +141,12 @@ def elo_rankings_from_file(name='elo.csv'):
 
         if match[2] > match[5]:
             actual_blue = 1.0
-            elo_db[b1_index, 3] += 1
-            elo_db[b2_index, 3] += 1
+            ranks[blue1, 4] += 1
+            ranks[blue2, 4] += 1
         elif match[2] < match[5]:
             actual_blue = 0.0
-            elo_db[r1_index, 3] += 1
-            elo_db[r2_index, 3] += 1
+            ranks[red1, 4] += 1
+            ranks[red2, 4] += 1
         else:
             actual_blue = 0.5
 
@@ -120,103 +159,114 @@ def elo_rankings_from_file(name='elo.csv'):
         red1_contrib = red_r1 / (red_rating * 2)
         red2_contrib = 1.0 - red1_contrib
 
-        if blue1[4]:
+        if ranks[blue1, 5]:
             modifier = 0
 
             if actual_blue == 1.0:
-                modifier = 400 - int(red1[4]) * 100 - int(red2[4]) * 100
+                modifier = 400 - int(ranks[red1, 5]) * 100 - int(ranks[red2, 5]) * 100
             elif actual_blue == 0.0:
-                modifier = -400 + int(red1[4]) * 100 + int(red2[4]) * 100
+                modifier = -400 + int(ranks[red1, 5]) * 100 + int(ranks[red2, 5]) * 100
 
-            elo_db[b1_index, 5] += red_rating + modifier
+            ranks[blue1, 6] += red_rating + modifier
         else:
-            elo_db[b1_index, 1] = max(100.0, blue1[1] + delta_blue * blue1_contrib)
+            ranks[blue1, 2] = max(100.0, ranks[blue1, 2] + delta_blue * blue1_contrib)
 
-        if blue2[4]:
+        if ranks[blue2, 5]:
             modifier = 0
 
             if actual_blue == 1.0:
-                modifier = 400 - int(red1[4]) * 100 - int(red2[4]) * 100
+                modifier = 400 - int(ranks[red1, 5]) * 100 - int(ranks[red2, 5]) * 100
             elif actual_blue == 0.0:
-                modifier = -400 + int(red1[4]) * 100 + int(red2[4]) * 100
+                modifier = -400 + int(ranks[red1, 5]) * 100 + int(ranks[red2, 5]) * 100
 
-            elo_db[b2_index, 5] += red_rating + modifier
+            ranks[blue2, 6] += red_rating + modifier
         else:
-            elo_db[b2_index, 1] = max(100.0, blue2[1] + delta_blue * blue2_contrib)
+            ranks[blue2, 2] = max(100.0, ranks[blue2, 2] + delta_blue * blue2_contrib)
 
-        if red1[4]:
+        if ranks[red1, 5]:
             modifier = 0
 
             if actual_red == 1.0:
-                modifier = 400 - int(blue1[4]) * 100 - int(blue2[4]) * 100
+                modifier = 400 - int(ranks[blue1, 5]) * 100 - int(ranks[blue2, 5]) * 100
             elif actual_red == 0.0:
-                modifier = -400 + int(blue2[4]) * 100 + int(blue2[4]) * 100
+                modifier = -400 + int(ranks[blue2, 5]) * 100 + int(ranks[blue2, 5]) * 100
 
-            elo_db[r1_index, 5] += blue_rating + modifier
+            ranks[red1, 6] += blue_rating + modifier
         else:
-            elo_db[r1_index, 1] = max(100.0, red1[1] + delta_red * red1_contrib)
+            ranks[red1, 2] = max(100.0, ranks[red1, 2] + delta_red * red1_contrib)
 
-        if red2[4]:
+        if ranks[red2, 5]:
             modifier = 0
 
             if actual_red == 1.0:
-                modifier = 400 - int(blue1[4]) * 100 - int(blue2[4]) * 100
+                modifier = 400 - int(ranks[blue1, 5]) * 100 - int(ranks[blue2, 5]) * 100
             elif actual_red == 0.0:
-                modifier = -400 + int(blue2[4]) * 100 + int(blue2[4]) * 100
+                modifier = -400 + int(ranks[blue2, 5]) * 100 + int(ranks[blue2, 5]) * 100
 
-            elo_db[r2_index, 5] += blue_rating + modifier
+            ranks[red2, 6] += blue_rating + modifier
         else:
-            elo_db[r2_index, 1] = max(100.0, red2[1] + delta_red * red2_contrib)
+            ranks[red2, 2] = max(100.0, ranks[red2, 2] + delta_red * red2_contrib)
 
-        elo_db[b1_index, 2] += 1
-        elo_db[b2_index, 2] += 1
-        elo_db[r1_index, 2] += 1
-        elo_db[r2_index, 2] += 1
+        ranks[blue1, 3] += 1
+        ranks[blue2, 3] += 1
+        ranks[red1, 3] += 1
+        ranks[red2, 3] += 1
 
-        if elo_db[b1_index, 4]:
-            elo_db[b1_index, 1] = max(100.0, elo_db[b1_index, 5] / elo_db[b1_index, 2])
+        if ranks[blue1, 5]:
+            ranks[blue1, 2] = max(100.0, ranks[blue1, 6] / ranks[blue1, 3])
 
-            if elo_db[b1_index, 2] >= nToEstablish:
-                elo_db[b1_index, 4] = False
+            if ranks[blue1, 3] >= nToEstablish:
+                ranks[blue1, 5] = False
 
-        if elo_db[b2_index, 4]:
-            elo_db[b2_index, 1] = max(100.0, elo_db[b2_index, 5] / elo_db[b2_index, 2])
+        if ranks[blue2, 5]:
+            ranks[blue2, 2] = max(100.0, ranks[blue2, 6] / ranks[blue2, 3])
 
-            if elo_db[b2_index, 2] >= nToEstablish:
-                elo_db[b2_index, 4] = False
+            if ranks[blue2, 3] >= nToEstablish:
+                ranks[blue2, 5] = False
 
-        if elo_db[r1_index, 4]:
-            elo_db[r1_index, 1] = max(100.0, elo_db[r1_index, 5] / elo_db[r1_index, 2])
+        if ranks[red1, 5]:
+            ranks[red1, 2] = max(100.0, ranks[red1, 6] / ranks[red1, 3])
 
-            if elo_db[r1_index, 2] >= nToEstablish:
-                elo_db[r1_index, 4] = False
+            if ranks[red1, 3] >= nToEstablish:
+                ranks[red1, 5] = False
 
-        if elo_db[r2_index, 4]:
-            elo_db[r2_index, 1] = max(100.0, elo_db[r2_index, 5] / elo_db[r2_index, 2])
+        if ranks[red2, 5]:
+            ranks[red2, 2] = max(100.0, ranks[red2, 6] / ranks[red2, 3])
 
-            if elo_db[r2_index, 2] >= nToEstablish:
-                elo_db[r2_index, 4] = False
+            if ranks[red2, 3] >= nToEstablish:
+                ranks[red2, 5] = False
 
-        return elo_db
+        return ranks
 
-    team_row = {
-        'team': ['0000'],
-        'elo': [800.0],
-        'played': [1],
-        'won': [1],
-        'provisional': [False],
-        'provision': [800.0]
-    }
+    if rankings is None:
+        rankings = pd.DataFrame(
+            data={
+                'global rank': [0],
+                'team': ['0000'],
+                'elo': [800.0],
+                'played': [1],
+                'won': [1],
+                'provisional': [False],
+                'provision': [800.0],
+                'region': [''],
+                'country': [''],
+                'grade': ['']
+            },
+            columns=[
+                'global rank',
+                'team',
+                'elo',
+                'played',
+                'won',
+                'provisional',
+                'provision',
+                'region',
+                'country',
+                'grade'
+            ]
+        ).set_index('team')
 
-    team_db = pd.DataFrame(data=team_row).to_numpy()
-    team_db[0, 0] = '0000'
-    team_db[0, 1] = 800.0
-    team_db[0, 2] = 1
-    team_db[0, 3] = 1
-    team_db[0, 4] = False
-    team_db[0, 5] = 800.0
-
-    matches = pd.read_csv(Path('.') / 'matches.csv').filter(
+    matches = matches.filter(
         items=[
             'blue1',
             'blue2',
@@ -227,21 +277,29 @@ def elo_rankings_from_file(name='elo.csv'):
         ]
     )
 
+    np_rankings = rankings.reset_index().to_numpy()
+
     for row in matches.values:
-        team_db = award_match(row, team_db)
+        np_rankings = award_match(row, np_rankings)
 
-    data_frame = pd.DataFrame(
-        team_db,
-        columns=['team', 'elo', 'played', 'won', 'provisional', 'provision']
-    ).set_index('team').drop('0000')
+    rankings = pd.DataFrame(
+        np_rankings,
+        columns=[
+            'team', 'global rank', 'elo', 'played', 'won',
+            'provisional', 'provision', 'region', 'country', 'grade'
+        ]
+    ).set_index('team').drop('0000').reset_index().set_index('global rank')
 
-    data_frame.sort_values(by=['elo'], ascending=False, inplace=True)
-    data_frame.reset_index(inplace=True)
-    data_frame.index = range(1, len(data_frame) + 1)
-    data_frame.index.names = ['rank']
-    data_frame.to_csv(Path('.') / name)
+    rankings.sort_values(by=['elo'], ascending=False, inplace=True)
+    rankings.index = range(1, len(rankings) + 1)
+    rankings = rankings.reindex(
+        columns=['team', 'elo', 'played', 'won', 'region', 'country', 'grade', 'provisional', 'provision']
+    )
+
+    return rankings
 
 
 if __name__ == '__main__':
-    get_all_matches()
-    elo_rankings_from_file('elo2019 (Turning Point).csv')
+    teams = get_all_teams()
+    matchList = get_all_matches()
+    elo_rankings_from_matches(teams, matchList)
