@@ -1,50 +1,78 @@
 import requests
 import pandas as pd
-from pathlib import Path
 import numpy as np
-import time
+import gspread as gs
+import pickle
+import os.path
+from oauth2client.service_account import ServiceAccountCredentials
+import math
+import numbers
+import signal
+from threading import Event
 
 k_factor = 64
 nToEstablish = 16
 pd.options.mode.chained_assignment = None
 
-def get_all_teams():
-    teams_total = requests.get(
+exit_event = Event()
+
+
+class Metadata:
+    def __init__(self, scored_matches=0):
+        self.scored_matches = scored_matches
+
+
+def get_teams_total(program='VRC'):
+    return requests.get(
         'https://api.vexdb.io/v1/get_teams',
         params={
             'nodata': 'true',
-            'program': 'VRC'
+            'program': program
         }
     ).json()['size']
+
+
+def get_all_teams(program='VRC'):
+    teams_total = get_teams_total(program)
 
     res = requests.get(
         'https://api.vexdb.io/v1/get_teams',
         params={
-          'program': 'VRC'
+          'program': program
         }
     ).json()
 
-    teams = res['result']
+    result_teams = res['result']
 
-    while len(teams) < teams_total:
+    while len(result_teams) < teams_total:
         res = requests.get(
             'https://api.vexdb.io/v1/get_teams',
             params={
-                'program': 'VRC',
-                'limit_start': len(teams)
+                'program': program,
+                'limit_start': len(result_teams)
             }
         ).json()
-        teams.extend(res['result'])
+        result_teams.extend(res['result'])
 
-    return pd.DataFrame(teams).set_index('number')
+    return pd.DataFrame(result_teams).set_index('number')
 
 
-def get_all_matches(season='current'):
-    matches_total = requests.get(
+def get_matches_total(season='current'):
+    return requests.get(
         'https://api.vexdb.io/v1/get_matches',
         params={'nodata': 'true', 'season': season}
     ).json()['size']
 
+
+def get_matches_scored(season='current'):
+    return requests.get(
+        'https://api.vexdb.io/v1/get_matches',
+        params={'nodata': 'true', 'season': season, 'scored': '1'}
+    ).json()['size']
+
+
+def get_all_matches(season='current'):
+    matches_total = get_matches_total(season)
     res = requests.get(
         'https://api.vexdb.io/v1/get_matches',
         params={
@@ -109,7 +137,6 @@ def elo_rankings_from_matches(team_list, matches, rankings=None):
 
         mean_elo = the_list[the_list[:, 5] == False][:, 2].mean()
         return np.insert(the_list, 0, [team, 0, mean_elo, 0, 0, True, 0.0, region, country, grade], axis=0)
-
 
     def award_match(match, ranks):
         # 0,     1,     2,         3,    4,    5
@@ -265,6 +292,10 @@ def elo_rankings_from_matches(team_list, matches, rankings=None):
                 'grade'
             ]
         ).set_index('team')
+        np_rankings = rankings.reset_index().to_numpy()
+    else:
+        np_rankings = rankings.reset_index().to_numpy()
+        np_rankings[:, 0:10] = np_rankings[:, [1, 0, 2, 3, 4, 8, 9, 5, 6, 7]]
 
     matches = matches.filter(
         items=[
@@ -277,8 +308,6 @@ def elo_rankings_from_matches(team_list, matches, rankings=None):
         ]
     )
 
-    np_rankings = rankings.reset_index().to_numpy()
-
     for row in matches.values:
         np_rankings = award_match(row, np_rankings)
 
@@ -288,8 +317,12 @@ def elo_rankings_from_matches(team_list, matches, rankings=None):
             'team', 'global rank', 'elo', 'played', 'won',
             'provisional', 'provision', 'region', 'country', 'grade'
         ]
-    ).set_index('team').drop('0000').reset_index().set_index('global rank')
+    ).set_index('team')
 
+    if '0000' in rankings.index:
+        rankings.drop('0000', inplace=True)
+
+    rankings = rankings.reset_index().set_index('global rank')
     rankings.sort_values(by=['elo'], ascending=False, inplace=True)
     rankings.index = range(1, len(rankings) + 1)
     rankings = rankings.reindex(
@@ -299,7 +332,108 @@ def elo_rankings_from_matches(team_list, matches, rankings=None):
     return rankings
 
 
+def update_rankings(selected_season='current'):
+    os.makedirs("data/" + selected_season, exist_ok=True)
+
+    if os.path.exists("data/" + selected_season + "/metadata.pickle"):
+        with open("data/" + selected_season + "/metadata.pickle", "rb") as file:
+            metadata = pickle.load(file)
+
+        if metadata.scored_matches == get_matches_scored("data/" + selected_season):
+            return None
+
+    if os.path.exists("data/" + selected_season + "/teams.pickle"):
+        num_teams = get_teams_total()
+
+        with open("data/" + selected_season + "/teams.pickle", "rb") as file:
+            teams = pickle.load(file)
+
+        if teams.shape[0] < num_teams:
+            teams = get_all_teams()
+            with open("data/" + selected_season + "/teams.pickle", "wb") as file:
+                pickle.dump(teams, file)
+    else:
+        teams = get_all_teams()
+        with open("data/" + selected_season + "/teams.pickle", "wb") as file:
+            pickle.dump(teams, file)
+
+    if os.path.exists("data/" + selected_season + "/match_list.pickle"):
+        match_list = get_all_matches()
+        metadata = Metadata(get_matches_scored("data/" + selected_season))
+
+        with open("data/" + selected_season + "/metadata.pickle", "wb") as file:
+            pickle.dump(metadata, file)
+        with open("data/" + selected_season + "/match_list.pickle", "rb") as file:
+            match_list_old = pickle.load(file)
+        with open("data/" + selected_season + "/match_list.pickle", "wb") as file:
+            pickle.dump(match_list, file)
+
+        match_list = match_list_old.merge(match_list, indicator=True, how='outer')
+        match_list = match_list[match_list['_merge'] == 'right_only']
+    else:
+        match_list = get_all_matches()
+        metadata = Metadata(get_matches_scored("data/" + selected_season))
+
+        with open("data/" + selected_season + "/metadata.pickle", "wb") as file:
+            pickle.dump(metadata, file)
+        with open("data/" + selected_season + "/match_list.pickle", "wb") as file:
+            pickle.dump(match_list, file)
+
+    if os.path.exists("data/" + selected_season + "/elo_db.pickle"):
+        with open("data/" + selected_season + "/elo_db.pickle", "rb") as file:
+            elo_db = pickle.load(file)
+        elo_db = elo_rankings_from_matches(teams, match_list, elo_db)
+    else:
+        elo_db = elo_rankings_from_matches(teams, match_list)
+
+    with open("data/" + selected_season + "/elo_db.pickle", "wb") as file:
+        pickle.dump(elo_db, file)
+    elo_db.to_csv("data/" + selected_season + "/elo_db.csv")
+    return elo_db
+
+
+def get_credentials_from_file(file):
+    scope = ['https://spreadsheets.google.com/feeds',
+             'https://www.googleapis.com/auth/drive']
+
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(file, scope)
+
+    return gs.authorize(credentials)
+
+
+def update_elo_sheet(elo_db, selected_season='current'):
+    if elo_db is None:
+        return
+
+    gc = get_credentials_from_file('./creds.json')
+    sheet = gc.open('elo ratings (' + selected_season + ')')
+    global_ratings = sheet.worksheet('global ratings')
+
+    flat = elo_db.reset_index().to_numpy().flatten()
+
+    cells = global_ratings.range('A2:J' + str(elo_db.shape[0]+1))
+
+    i = 0
+    for cell in cells:
+        value = flat[i]
+        if isinstance(value, numbers.Number) and math.isnan(value):
+            cell.value = ''
+        else:
+            cell.value = value
+        i += 1
+
+    global_ratings.update_cells(cells)
+
+
+def set_exit_signal(signo, _frame):
+    global exit_event
+    exit_event.set()
+
+
 if __name__ == '__main__':
-    teams = get_all_teams()
-    matchList = get_all_matches()
-    elo_rankings_from_matches(teams, matchList)
+    signal.signal(signal.SIGINT, set_exit_signal)
+
+    while not exit_event.is_set():
+        rankings = update_rankings('current')
+        update_elo_sheet(rankings)
+        exit_event.wait(150.0)
