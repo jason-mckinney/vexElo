@@ -340,7 +340,10 @@ def update_rankings(selected_season='current'):
             metadata = pickle.load(file)
 
         if metadata.scored_matches == get_matches_scored("data/" + selected_season):
+            print("no new data")
             return None
+
+    print("new data uploaded, updating ratings...")
 
     if os.path.exists("data/" + selected_season + "/teams.pickle"):
         num_teams = get_teams_total()
@@ -405,7 +408,9 @@ def update_elo_sheet(elo_db, selected_season='current'):
     if elo_db is None:
         return
 
-    gc = get_credentials_from_file('./creds.json')
+    print("applying update to spreadsheet for season " + selected_season + "...")
+
+    gc = get_credentials_from_file('./data/creds.json')
     sheet = gc.open('elo ratings (' + selected_season + ')')
     global_ratings = sheet.worksheet('global ratings')
 
