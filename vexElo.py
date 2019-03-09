@@ -339,8 +339,7 @@ def update_rankings(selected_season='current'):
         with open("data/" + selected_season + "/metadata.pickle", "rb") as file:
             metadata = pickle.load(file)
 
-        if metadata.scored_matches == get_matches_scored("data/" + selected_season):
-            print("no new data")
+        if metadata.scored_matches == get_matches_scored(selected_season):
             return None
 
     print("new data uploaded, updating ratings...")
@@ -361,8 +360,8 @@ def update_rankings(selected_season='current'):
             pickle.dump(teams, file)
 
     if os.path.exists("data/" + selected_season + "/match_list.pickle"):
-        match_list = get_all_matches()
-        metadata = Metadata(get_matches_scored("data/" + selected_season))
+        match_list = get_all_matches(selected_season)
+        metadata = Metadata(get_matches_scored(selected_season))
 
         with open("data/" + selected_season + "/metadata.pickle", "wb") as file:
             pickle.dump(metadata, file)
@@ -374,8 +373,8 @@ def update_rankings(selected_season='current'):
         match_list = match_list_old.merge(match_list, indicator=True, how='outer')
         match_list = match_list[match_list['_merge'] == 'right_only']
     else:
-        match_list = get_all_matches()
-        metadata = Metadata(get_matches_scored("data/" + selected_season))
+        match_list = get_all_matches(selected_season)
+        metadata = Metadata(get_matches_scored(selected_season))
 
         with open("data/" + selected_season + "/metadata.pickle", "wb") as file:
             pickle.dump(metadata, file)
