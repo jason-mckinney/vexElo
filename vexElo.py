@@ -34,10 +34,8 @@
 import requests
 import pandas as pd
 import numpy as np
-import gspread as gs
 import pickle
 import os.path
-from oauth2client.service_account import ServiceAccountCredentials
 import math
 import numbers
 import signal
@@ -151,7 +149,7 @@ def get_all_matches(season='current'):
     ])
 
     for sku in skus.values:
-        dataframe = dataframe.append(raw_dataframe[raw_dataframe['sku'] == sku])
+        dataframe = dataframe.append(raw_dataframe[raw_dataframe['sku'] == sku], sort=False)
 
     return dataframe
 
@@ -160,9 +158,9 @@ def elo_rankings_from_matches(team_list, matches, rankings=None):
     def add_team(the_list, team):
         try:
             team_from_list = team_list.loc[team]
-            country = team_from_list[1]
-            region = team_from_list[6]
-            grade = team_from_list[2]
+            country = team_from_list['country']
+            region = team_from_list['region']
+            grade = team_from_list['grade']
         except KeyError:
             region = ''
             grade = ''
@@ -427,41 +425,6 @@ def update_rankings(selected_season='current'):
     return elo_db
 
 
-def get_credentials_from_file(file):
-    scope = ['https://spreadsheets.google.com/feeds',
-             'https://www.googleapis.com/auth/drive']
-
-    credentials = ServiceAccountCredentials.from_json_keyfile_name(file, scope)
-
-    return gs.authorize(credentials)
-
-
-def update_elo_sheet(elo_db, selected_season='current'):
-    if elo_db is None:
-        return
-
-    print("applying update to spreadsheet for season " + selected_season + "...")
-
-    gc = get_credentials_from_file('./data/creds.json')
-    sheet = gc.open('elo ratings (' + selected_season + ')')
-    global_ratings = sheet.worksheet('global ratings')
-
-    flat = elo_db.reset_index().to_numpy().flatten()
-
-    cells = global_ratings.range('A2:J' + str(elo_db.shape[0]+1))
-
-    i = 0
-    for cell in cells:
-        value = flat[i]
-        if isinstance(value, numbers.Number) and math.isnan(value):
-            cell.value = ''
-        else:
-            cell.value = value
-        i += 1
-
-    global_ratings.update_cells(cells)
-
-
 def set_exit_signal(signo, _frame):
     global exit_event
     exit_event.set()
@@ -472,5 +435,4 @@ if __name__ == '__main__':
 
     while not exit_event.is_set():
         rankings = update_rankings('current')
-        update_elo_sheet(rankings)
         exit_event.wait(150.0)
